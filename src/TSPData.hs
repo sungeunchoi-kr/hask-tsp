@@ -1,15 +1,13 @@
 module TSPData where
 
+import Control.Applicative
 import qualified Data.Map as Map
 
-data Loc = Loc {
-    locx :: Float,
-    locy :: Float
-} deriving (Show)
+type Position = [Float]
 
 type GrpahDist = Float
 type NodeLbl = Int
-type Graph = Map.Map NodeLbl Loc
+type Graph = Map.Map NodeLbl Position
 type Gene = [NodeLbl]
 data TravState = TravState [NodeLbl] (Map.Map NodeLbl GrpahDist)
 
@@ -18,20 +16,25 @@ listCities = Map.keys
 
 graphDist :: Graph -> NodeLbl -> NodeLbl -> Float
 graphDist g n1 n2 =
-    sqrt $
-        ((locx n2_loc - locx n1_loc) ** 2.0)
-        + ((locy n2_loc - locy n1_loc) ** 2.0)
+    distance p1 p2
     where
-        n1_loc = g Map.! n1
-        n2_loc = g Map.! n2
+        p1 = g Map.! n1
+        p2 = g Map.! n2
+        --square = flip (**) 2
+        --deltasq = square <$> zipWith (-) p1 p2
+
+distance :: Floating n => [n] -> [n] -> n
+distance p1 p2 = sqrt $ foldl squareAndSum 0 $ zipWith (-) p1 p2
+    where
+        squareAndSum acc e = acc + (e ** 2)
 
 loadCitiesDataAsGraph :: [String] -> TSPData.Graph
 loadCitiesDataAsGraph lines = 
     Map.fromList $ parseline <$> lines
     where
-        parseline :: String -> (TSPData.NodeLbl, TSPData.Loc)
+        parseline :: String -> (NodeLbl, Position)
         parseline line = toTuple $ words line
 
-        toTuple :: [String] -> (TSPData.NodeLbl, TSPData.Loc)
-        toTuple [n,x,y] = ( (read n), TSPData.Loc (read x) (read y) )
-        toTuple _ = ( -1, TSPData.Loc 0 0 )
+        toTuple :: [String] -> (NodeLbl, Position)
+        toTuple (n:ps) = ( (read n), fmap read ps )
+        toTuple _ = ( -1, [] )
