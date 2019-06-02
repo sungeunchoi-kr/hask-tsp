@@ -17,14 +17,15 @@ import TSPData
 -- interesting read:
 -- https://arxiv.org/pdf/1808.08329.pdf
 
-geneDist :: Graph -> [NodeLbl] -> Float
+-- | Calculates the distance of the gene on the given graph.
+geneDist :: Graph -> Gene -> Float
 geneDist _ [] = 0
-geneDist g xs = geneDist' g $ xs ++ [head xs] -- include route back home.
+geneDist g xs = geneDist' g (head xs) xs
     where
-    geneDist' _ [] = 0
-    geneDist' _ (x:[]) = 0
-    geneDist' g (x:y:[]) = graphDist g x y
-    geneDist' g (x:y:rs) = (graphDist g x y) + (geneDist' g (y:rs))
+    geneDist' _ _ [] = 0
+    geneDist' _ _ (x:[]) = 0
+    geneDist' g s (x:y:[]) = graphDist g x y + (graphDist g y s) -- include route back home.
+    geneDist' g s (x:y:rs) = graphDist g x y + (geneDist' g s (y:rs))
 
 bestInGenePool :: Graph -> [Gene] -> Gene
 bestInGenePool cities = minimumBy (comparing $ geneDist cities)
@@ -32,20 +33,16 @@ bestInGenePool cities = minimumBy (comparing $ geneDist cities)
 worstInGenePool :: Graph -> [Gene] -> Gene
 worstInGenePool cities = maximumBy (comparing $ geneDist cities)
 
-genePoolDistDelta cities p =
-    (geneDist cities $ worstInGenePool cities p)
-    - (geneDist cities $ bestInGenePool cities p)
+createGenePool :: (MonadRandom m) => Int -> [NodeLbl] -> m [[NodeLbl]]
+createGenePool n = replicateM n . shuffle
 
-selection :: Graph -> Int -> [Gene] -> [Gene]
-selection _ _ [] = []
-selection cities n xs = 
+tournamentSelection :: Graph -> Int -> [Gene] -> [Gene]
+tournamentSelection _ _ [] = []
+tournamentSelection cities n xs = 
     let competitors = take n xs
         xsRemainder = drop n xs
         winner = bestInGenePool cities competitors in 
-    winner : (selection cities n xsRemainder)
-
-createGenePool :: (MonadRandom m) => Int -> [NodeLbl] -> m [[NodeLbl]]
-createGenePool n = replicateM n . shuffle
+    winner : (tournamentSelection cities n xsRemainder)
 
 -- order 1 crossover 
 -- http://www.rubicite.com/Tutorials/GeneticAlgorithms/CrossoverOperators/Order1CrossoverOperator.aspx
@@ -62,10 +59,10 @@ order1Crossover p1 p2 = do
     let ch = filter (\n -> Set.notMember n swathSet) p2
     return $ (take rpos ch) ++ swath ++ (drop rpos ch)
 
-crossover :: (MonadRandom m) => [Gene] -> m [Gene]
-crossover gs = do
-    crossed <- forM (pairup gs) $ uncurry order1Crossover
-    return crossed 
+crossover :: (MonadRandom m) => Int -> [Gene] -> m [Gene]
+crossover n gs = do
+    let parentPair = foldl (++) [] $ take n $ repeat $ pairup gs
+    forM parentPair $ uncurry order1Crossover
     where
         pairup :: [a] -> [(a,a)]
         pairup [] = []

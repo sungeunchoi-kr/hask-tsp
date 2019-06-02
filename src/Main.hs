@@ -14,8 +14,8 @@ parse [s]    = do
     let g = TSPData.loadCitiesDataAsGraph $ lines dat
     TSP.run g
 
-usage   = putStrLn "Usage: tac [-vh] [file ..]"
-version = putStrLn "Haskell tac 0.1"
+usage   = putStrLn "Usage: [-vh] [file ..]"
+version = putStrLn "0.1"
 exit    = exitWith ExitSuccess
 die     = exitWith (ExitFailure 1)
 
