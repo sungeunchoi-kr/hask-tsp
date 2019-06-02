@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List
 import Data.Ord
+import Data.Sort
 import System.IO.Unsafe
 import System.Random
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -91,29 +92,50 @@ mutate p g = do
 mutateN :: (MonadRandom m) => Float -> [Gene] -> m [Gene]
 mutateN p gs = forM gs (mutate p)
 
+poolDI :: Graph -> [Gene] -> Float
+poolDI graph gene = 
+    (med - min)
+    where med = medianDistInGenePool graph gene
+          min = geneDist graph $ bestInGenePool graph gene
+    
 generation :: (MonadRandom m) => Graph -> [Gene] -> m [Gene]
-generation cities genes = do
-    let genes' = selection cities 3 genes
-    offsprings <- crossover genes'
-    offsprings_mu <- mutateN 0.1 offsprings
-    let d = (length genes) - (length offsprings_mu)
-    return $ offsprings_mu ++ (take d genes)
+generation cities g0 = do
+    let di = poolDI cities g0  -- the gene pool diversity index
+    if di > 0.0
+        then do
+            let g1 = tournamentSelection cities 3 g0
+            offsprings <- crossover 3 g1
+            offsprings_mu <- mutateN 0.1 offsprings
+            let d = (length g0) - (length offsprings_mu)
+            return $ offsprings_mu ++ (take d g0)
+        else do
+            offsprings_mu <- mutateN 0.9 g0
+            --let d = (length g0) - (length offsprings_mu)
+            return $ offsprings_mu  -- ++ (take d g0)
+            
 
 generationN :: (RandomGen g) => Graph -> Int -> [Gene] -> RandT g IO [Gene]
 generationN cities 0 g0 = generation cities g0
 generationN cities n g0 = do
     g1 <- generation cities g0
     liftIO $ putStrLn $
-        (show $ geneDist cities $ bestInGenePool cities g1) ++ ";"
+        (show $ geneDist cities $ bestInGenePool cities g1)     ++ ";"
+        -- ++ (show $ medianDistInGenePool cities g1)              ++ ";"
+        -- ++ (show $ poolDI cities g1)                            ++ ";"
         ++ (show $ geneDist cities $ worstInGenePool cities g1) ++ ";"
         ++ (show $ bestInGenePool cities g1)
     g2 <- generationN cities (n-1) g1
     return g2
 
+medianDistInGenePool :: Graph -> [Gene] -> Float
+medianDistInGenePool cities pool = 
+    let ls = sort $ fmap (geneDist cities) pool
+    in ls !! (length ls `div` 2)
+
 start :: (RandomGen g) => Graph -> RandT g IO [Gene]
 start cities = do
     genes <- createGenePool 1000 (listCities cities)
-    result <- generationN cities 1000 genes
+    result <- generationN cities 1000000 genes
     return result
 
 run :: Graph -> IO ()

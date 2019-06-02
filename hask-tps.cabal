@@ -25,6 +25,7 @@ executable hask-tps
     , containers
     , time
     , mmorph
+    , sort
   other-modules:
     Shuffle
     , TSP
